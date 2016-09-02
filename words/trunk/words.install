@@ -11,6 +11,7 @@ post_install() {
     de_*|de|deutsch) lang='ngerman' ;;
     es_*|es|spanish) lang='spanish' ;;
     en_*|en|english|POSIX|C) lang='usa' ;;
+    ru_*|ru-*|ru|russian) lang='russian' ;;
     *)
       echo "==> Unable to determine locale, defaulting to American English"
       lang='usa'

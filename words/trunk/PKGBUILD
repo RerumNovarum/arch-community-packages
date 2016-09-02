@@ -2,6 +2,8 @@
 # Maintainer: Kyle Keen <keenerd@gmail.com>
 # Contributor: Lukas Fleischer <lfleischer@archlinux.org>
 # Contributor: Eric Johnson <eric@coding-zone.com>
+# aspell dat file handling: Sergey Kozlukov <rerumnovarum@openmailbox.org>
+
 pkgname=words
 pkgver=2.1
 pkgrel=4
@@ -19,7 +21,8 @@ source=('ftp://ftp.gnu.org/gnu/aspell/dict/en/aspell6-en-7.1-0.tar.bz2'
         'ftp://ftp.gnu.org/gnu/aspell/dict/de-alt/aspell6-de-alt-2.1-1.tar.bz2'
         'ftp://ftp.gnu.org/gnu/aspell/dict/it/aspell6-it-2.2_20050523-0.tar.bz2'
         'ftp://ftp.gnu.org/gnu/aspell/dict/de/aspell-de-0.50-2.tar.bz2'
-        'ftp://ftp.gnu.org/gnu/aspell/dict/es/aspell6-es-1.11-2.tar.bz2')
+        'ftp://ftp.gnu.org/gnu/aspell/dict/es/aspell6-es-1.11-2.tar.bz2'
+        'ftp://ftp.gnu.org/gnu/aspell/dict/ru/aspell6-ru-0.99f7-1.tar.bz2')
 md5sums=('beba5e8f3afd3ed1644653bb685b2dfb'
          '153d26f724866909c6faf49eecefe8b3'
          '6d1032116982c0efab1af8fce83259c0'
@@ -27,17 +30,37 @@ md5sums=('beba5e8f3afd3ed1644653bb685b2dfb'
          '13245374b03088608d729fd15c58cd7a'
          'b1217299a0b67d1e121494d7ec18a88d'
          '204a9737ff0110fb8c7d284bd7200f7d'
-         '8406336a89c64e47e96f4153d0af70c4')
+         '8406336a89c64e47e96f4153d0af70c4'
+         'c4c98eaa5e77ad3adccbc5c96cb57cb3')
 
 build() {
     mkdir -p "$srcdir/$pkgname"
     cd "$srcdir/$pkgname"
 
-    find "$srcdir" -name '*.cwl' -not -path "$srcdir/$pkgname/*" -exec cp -u '{}' './' \;
-    preunzip *.cwl
-    for wl in *.wl; do
-        iconv --from-code=ISO-8859-1 --to-code=UTF-8 $wl | \
-        cut -d '/' -f 1 | LC_ALL=C sort -df > $wl.utf8
+    find "$srcdir" \
+        -name '*.cwl' \
+        -not -path "$srcdir/$pkgname/*" \
+    | while read _cwlfile_ ; do
+        echo "$_cwlfile_"
+        cp "$_cwlfile_" "./"
+        preunzip *.cwl
+
+        _wldir_=$(dirname "$_cwlfile_")
+          _wlfile_=$(basename ${_cwlfile_%cwl}wl)
+          _enc_=$(\
+                   find "$_wldir_" \
+                     -maxdepth 1 \
+                          -iname '*.dat' \
+                          -not -iname '*_affix.dat' \
+                          -not -iname '*_phonet.dat' \
+                          -exec cat '{}' \; \
+                   | while read _k_ _v_ ; do
+                           [[ "$_k_" == "charset" ]] &&  echo $_v_ && exit 0 ; done
+               )
+          [[ -z "$_enc_" ]] && _enc_ = "ISO-8859-1"
+          echo $_wlfile_ : $_enc_
+        iconv --from-code="$_enc_" --to-code=UTF-8 $_wlfile_ | \
+        cut -d '/' -f 1 | LC_ALL=C sort -df > $_wlfile_.utf8
     done
     rm *.wl
 
@@ -53,6 +76,7 @@ build() {
     cat en-common.wl.utf8 en_US* | sort -u | LC_ALL=C sort -df > us-merged
     cat en-common.wl.utf8 en_GB* | sort -u | LC_ALL=C sort -df > gb-merged
     cat de-only.wl.utf8   de_*   | sort -u | LC_ALL=C sort -df > de-merged
+    cat ru-*.wl.utf8 | sort -u | LC_ALL="ru_RU.UTF-8" sort -df > ru-merged
 }
 
 package() {
@@ -62,6 +86,9 @@ package() {
     install -Dm644 gb-merged "$pkgdir/usr/share/dict/british-english"
     ln -s american-english   "$pkgdir/usr/share/dict/usa"
     ln -s british-english    "$pkgdir/usr/share/dict/british"
+
+    install -Dm644 ru-merged "$pkgdir/usr/share/dict/russian"
+    ln -s russian            "$pkgdir/usr/share/dict/ru"
 
     install -Dm644 ca-common.wl.utf8 "$pkgdir/usr/share/dict/catala"
     ln -s catala "$pkgdir/usr/share/dict/catalan"
